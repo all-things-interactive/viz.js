@@ -1,0 +1,16 @@
+--- build/graphviz-src/plugin/core/gvrender_core_json.c	2016-09-20 04:45:02.000000000 +0000
++++ a	2019-06-27 15:38:21.419004014 +0000
+@@ -131,12 +131,7 @@
+     return s;
+ }
+ 
+-static void indent(GVJ_t * job, int level)
+-{
+-    int i;
+-    for (i = level; i > 0; i--)
+-	gvputs(job, "  ");
+-}
++#define indent(job, level)
+ 
+ static void set_attrwf(Agraph_t * g, int toplevel, int value)
+ {

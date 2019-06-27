@@ -1,74 +1,82 @@
 #include <gvc.h>
+#include <stdlib.h>
 #include <emscripten.h>
 
 extern int Y_invert;
-extern int Nop;
 
-extern gvplugin_library_t gvplugin_core_LTX_library;
+// plugin/core/gvplugin_core.c
+extern gvplugin_installed_t gvdevice_dot_types[];
+extern gvplugin_installed_t gvrender_dot_types[];
+extern gvplugin_installed_t gvdevice_json_types[];
+extern gvplugin_installed_t gvrender_json_types[];
+
+static gvplugin_api_t apis[] = {
+    {API_device, gvdevice_dot_types},
+    {API_device, gvdevice_json_types},
+
+    {API_render, gvrender_dot_types},
+    {API_render, gvrender_json_types},
+
+    {(api_t)0, 0},
+};
+
+static gvplugin_library_t gvplugin_core_LTX_library = { "core", apis };
+
 extern gvplugin_library_t gvplugin_dot_layout_LTX_library;
-#ifndef VIZ_LITE
-extern gvplugin_library_t gvplugin_neato_layout_LTX_library;
-#endif
 
-char *errorMessage = NULL;
+static char *g_error = NULL;
 
-int vizErrorf(char *buf) {
-  errorMessage = buf;
+static int vizErrorf(char *buf) {
+  // the buffer is reused for next error message, don't free
+  g_error = buf;
   return 0;
 }
 
-char* vizLastErrorMessage() {
-  return errorMessage;
-}
+struct viz_result {
+  char *result;
+  unsigned int result_length;
+  char *error;
+};
 
-void vizCreateFile(char *path, char *data) {
-  EM_ASM_({
-    var path = Pointer_stringify($0);
-    var data = Pointer_stringify($1);
-    
-    FS.createPath("/", PATH.dirname(path));
-    FS.writeFile(PATH.join("/", path), data);
-  }, path, data);
-}
+int vizRender(
+  struct viz_result *viz_result,
+  const char *engine, const char *format,
+  const char *input,
+  size_t input_length,
+  int opt_y_invert
+) {
 
-void vizSetY_invert(int invert) {
-  Y_invert = invert;
-}
-
-void vizSetNop(int value) {
-  if (value != 0)
-    Nop = value;
-}
-
-char* vizRenderFromString(const char *src, const char *format, const char *engine) {
-  GVC_t *context;
+  static GVC_t *context;
   Agraph_t *graph;
-  char *result = NULL;
-  unsigned int length;
-  
-  context = gvContext();
-  gvAddLibrary(context, &gvplugin_core_LTX_library);
-  gvAddLibrary(context, &gvplugin_dot_layout_LTX_library);
-#ifndef VIZ_LITE
-  gvAddLibrary(context, &gvplugin_neato_layout_LTX_library);
-#endif
+  int rc;
 
-  agseterr(AGERR);
-  agseterrf(vizErrorf);
-  
-  agreadline(1);
-  
-  while ((graph = agmemread(src))) {
-    if (result == NULL) {
-      gvLayout(context, graph, engine);
-      gvRenderData(context, graph, format, &result, &length);
-      gvFreeLayout(context, graph);
-    }
-    
-    agclose(graph);
-    
-    src = "";
+  if (!context) {
+    context = gvContext();
+    gvAddLibrary(context, &gvplugin_core_LTX_library);
+    gvAddLibrary(context, &gvplugin_dot_layout_LTX_library);
+
+    agseterr(AGERR);
+    agseterrf(vizErrorf);
   }
-  
-  return result;
+
+  viz_result->result = NULL;
+  Y_invert = opt_y_invert;
+
+  if (!(graph = agmemread(input))) {
+    rc = -1;
+    goto cleanup;
+  }
+
+  if ((rc = gvLayout(context, graph, engine)) != 0) goto cleanup_graph;
+
+  rc = gvRenderData(
+    context, graph, format,
+    &viz_result->result, &viz_result->result_length);
+
+  gvFreeLayout(context, graph);
+cleanup_graph:
+  agclose(graph);
+cleanup:
+  viz_result->error = g_error;
+  return rc;
 }
