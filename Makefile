@@ -47,6 +47,8 @@ build/.graphviz-src: build/graphviz.tar.gz
 	tar -zxf $^ --strip-components 1 -C build/graphviz-src
 	patch -si hacks/gvrender_core_json.c.patch \
 		build/graphviz-src/plugin/core/gvrender_core_json.c
+	patch -si hacks/late_double.patch \
+		build/graphviz-src/lib/common/utils.c
 	touch $@
 
 build/graphviz.tar.gz:
