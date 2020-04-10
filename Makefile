@@ -20,7 +20,7 @@ graphviz.wasm: build/graphviz.js
 build/graphviz.js: src/viz.c build/.graphviz-dist
 	emcc -Oz --memory-init-file 0 \
 		-s ENVIRONMENT=worker -s MODULARIZE=0 -s FILESYSTEM=0 \
-		-s NO_DYNAMIC_EXECUTION=1 -s EXPORTED_FUNCTIONS="['_vizRender']" \
+		-s NO_DYNAMIC_EXECUTION=1 -s EXPORTED_FUNCTIONS="['_vizRender', '_malloc', '_free']" \
 		-s EXPORTED_RUNTIME_METHODS="['stackSave', 'stackAlloc', 'stackRestore', \
 			'UTF8ToString', 'lengthBytesUTF8', 'stringToUTF8']" \
 		-o $@ $< \
